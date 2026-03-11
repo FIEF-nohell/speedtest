@@ -91,12 +91,12 @@ export function ResultScreen({ result }: { result: SpeedTestResult }) {
         </div>
       </motion.div>
 
-      {/* Secondary metrics — flat inline row */}
+      {/* Secondary metrics */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.3 }}
-        className="flex items-baseline gap-8 mb-6"
+        className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mb-6"
       >
         <div className="flex items-baseline gap-1.5">
           <span className="text-label uppercase tracking-wider text-[11px]">Ping</span>
@@ -108,9 +108,9 @@ export function ResultScreen({ result }: { result: SpeedTestResult }) {
           <span className="font-mono text-white font-medium">{jitter}</span>
           <span className="text-label text-[11px]">ms</span>
         </div>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-label uppercase tracking-wider text-[11px]">Server</span>
-          <span className="font-mono text-white/70 font-medium">{server || "—"}</span>
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span className="text-label uppercase tracking-wider text-[11px] shrink-0">Server</span>
+          <span className="font-mono text-white/70 font-medium truncate max-w-[180px] sm:max-w-none">{server || "—"}</span>
         </div>
       </motion.div>
 
