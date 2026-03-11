@@ -95,7 +95,11 @@ export function useSpeedTest() {
     const response = await fetch(url + "?r=" + Math.random() + "&t=" + Date.now(), {
       signal,
       cache: "no-store",
-      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+        "Accept-Encoding": "identity", // prevent compression — we need raw bytes for accurate measurement
+      },
     });
     const reader = response.body!.getReader();
     while (true) {
