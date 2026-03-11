@@ -100,68 +100,69 @@ export function SpeedTest() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
-            className="flex flex-col items-center justify-center py-12"
+            className="flex flex-col items-center justify-center"
+            style={{ paddingTop: "8vh", paddingBottom: "4vh" }}
           >
-            {/* Title */}
-            <motion.h1
-              initial={{ opacity: 0, y: -10 }}
+            {/* Title block */}
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="text-lg sm:text-xl font-mono text-white/80 tracking-wider mb-1"
+              className="text-center mb-16 sm:mb-20"
             >
-              Speed Test
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.15 }}
-              className="text-[11px] font-mono text-label/30 tracking-widest uppercase mb-12"
-            >
-              latency &middot; download
-            </motion.p>
+              <h1 className="text-base sm:text-lg font-mono text-white/70 tracking-[0.2em] uppercase">
+                Speed Test
+              </h1>
+              <p className="text-[10px] font-mono text-label/25 tracking-[0.3em] uppercase mt-1.5">
+                latency &middot; download
+              </p>
+            </motion.div>
 
-            {/* GO button with ambient rings */}
-            <div className="relative flex items-center justify-center mb-14">
-              {[1.9, 1.55, 1.25].map((scale, i) => (
+            {/* GO button — rings contained in fixed-size box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.15 }}
+              className="relative flex items-center justify-center w-56 h-56 mb-16 sm:mb-20"
+            >
+              {/* Pulse rings — stay inside the container */}
+              {[0.95, 0.78, 0.62].map((scale, i) => (
                 <motion.div
                   key={i}
-                  className="absolute rounded-full border border-accent/8"
-                  style={{ width: 112 * scale, height: 112 * scale }}
-                  animate={{ opacity: [0.3, 0.06, 0.3], scale: [1, 1.04, 1] }}
+                  className="absolute rounded-full border border-accent/6"
+                  style={{ width: `${scale * 100}%`, height: `${scale * 100}%` }}
+                  animate={{ opacity: [0.25, 0.05, 0.25], scale: [1, 1.03, 1] }}
                   transition={{
-                    duration: 3.5,
+                    duration: 4,
                     repeat: Infinity,
                     ease: "easeInOut",
-                    delay: i * 0.6,
+                    delay: i * 0.7,
                   }}
                 />
               ))}
 
               <motion.button
                 onClick={start}
-                className="relative z-10 w-28 h-28 rounded-full bg-surface border border-accent/25 text-white font-mono font-medium text-lg tracking-[0.25em] cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
-                whileHover={{ scale: 1.06, borderColor: "rgba(0,212,255,0.5)" }}
+                className="relative z-10 w-28 h-28 rounded-full bg-surface border border-accent/20 text-white font-mono font-medium text-lg tracking-[0.25em] cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
+                whileHover={{ scale: 1.06, borderColor: "rgba(0,212,255,0.45)" }}
                 whileTap={{ scale: 0.95 }}
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
               >
                 <motion.div
-                  className="absolute inset-0 rounded-full"
+                  className="absolute inset-0 rounded-full pointer-events-none"
                   style={{ boxShadow: "0 0 0 0 rgba(0,212,255,0)" }}
-                  whileHover={{ boxShadow: "0 0 40px 6px rgba(0,212,255,0.12)" }}
+                  whileHover={{ boxShadow: "0 0 40px 6px rgba(0,212,255,0.1)" }}
                   transition={{ duration: 0.25 }}
                 />
                 GO
               </motion.button>
-            </div>
+            </motion.div>
 
-            {/* Server info */}
+            {/* Server hostname */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="text-[10px] font-mono text-label/20 tracking-wider"
+              transition={{ duration: 0.5, delay: 0.35 }}
+              className="text-[10px] font-mono text-label/15 tracking-wider"
             >
               {host}
             </motion.div>
