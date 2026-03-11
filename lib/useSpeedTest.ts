@@ -76,7 +76,7 @@ export function useSpeedTest() {
   const runDownload = async (signal: AbortSignal): Promise<number> => {
     update({ phase: "download", status: "Testing download...", downloadData: [], currentValue: 0 });
 
-    const rounds = 3;
+    const rounds = 6;
     let totalBytes = 0;
     const allDataPoints: DataPoint[] = [];
     const globalStart = performance.now();

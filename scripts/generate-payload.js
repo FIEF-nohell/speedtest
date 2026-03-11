@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const size = 100 * 1024 * 1024; // 100MB
+const size = 50 * 1024 * 1024; // 50MB — safely under GitHub's 100MB per-file hard limit
 const chunkSize = 1024 * 1024; // 1MB writes
 const outPath = path.join(__dirname, "..", "public", "payload.bin");
 
