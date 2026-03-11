@@ -114,29 +114,16 @@ export function ResultScreen({ result }: { result: SpeedTestResult }) {
         </div>
       </motion.div>
 
-      {/* Copy result button */}
-      <motion.div
+      {/* Copy result — subtle inline text */}
+      <motion.span
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.5 }}
+        onClick={handleCopy}
+        className="inline-flex items-center gap-1 text-[11px] font-mono text-label/40 hover:text-label/70 transition-colors cursor-pointer select-none"
       >
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white/5 border border-white/10 text-[11px] font-mono text-label hover:text-white hover:border-white/20 transition-all cursor-pointer"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {copied ? (
-              <path d="M20 6L9 17l-5-5" />
-            ) : (
-              <>
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-              </>
-            )}
-          </svg>
-          {copied ? "Copied" : "Copy result"}
-        </button>
-      </motion.div>
+        {copied ? "copied to clipboard" : "copy result"}
+      </motion.span>
     </motion.div>
   );
 }
