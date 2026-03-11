@@ -113,7 +113,7 @@ export function SpeedTest() {
               <h1 className="text-base sm:text-lg font-mono text-white/70 tracking-[0.2em] uppercase">
                 Speed Test
               </h1>
-              <p className="text-[10px] font-mono text-label/25 tracking-[0.3em] uppercase mt-1.5">
+              <p className="text-[10px] font-mono text-label/50 tracking-[0.3em] uppercase mt-1.5">
                 latency &middot; download
               </p>
             </motion.div>
@@ -162,7 +162,7 @@ export function SpeedTest() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.35 }}
-              className="text-[10px] font-mono text-label/15 tracking-wider"
+              className="text-[10px] font-mono text-label/40 tracking-wider"
             >
               {host}
             </motion.div>
