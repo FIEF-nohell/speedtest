@@ -9,6 +9,21 @@ export interface DataPoint {
   value: number; // MB/s
 }
 
+export interface DiagnosticData {
+  probeMbs: number;
+  probeFile: string;
+  warmupMbs: number;
+  warmupFile: string;
+  measureFile: string;
+  measureDurationSecs: number;
+  measurePasses: number;
+  oneSecAverages: number[];
+  rampDiscarded: number;
+  trimmedValues: number[];
+  finalMethod: string;
+  finalMbs: number;
+}
+
 export interface SpeedTestResult {
   phase: TestPhase;
   status: string;
@@ -18,6 +33,7 @@ export interface SpeedTestResult {
   downloadData: DataPoint[];
   currentValue: number;
   server: string;
+  diagnostics: DiagnosticData | null;
 }
 
 const INITIAL: SpeedTestResult = {
@@ -29,6 +45,7 @@ const INITIAL: SpeedTestResult = {
   downloadData: [],
   currentValue: 0,
   server: "",
+  diagnostics: null,
 };
 
 // ── Tuning constants ──
@@ -98,7 +115,7 @@ export function useSpeedTest() {
       headers: {
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
-        "Accept-Encoding": "identity", // prevent compression — we need raw bytes for accurate measurement
+        "Accept-Encoding": "identity",
       },
     });
     const reader = response.body!.getReader();
@@ -112,10 +129,14 @@ export function useSpeedTest() {
 
   // ── Pick file size based on estimated speed ──
   const pickFile = (estimatedMbs: number): string => {
-    if (estimatedMbs < 5) return SMALL_FILE;     // slow: 10MB chunks
-    if (estimatedMbs < 50) return MEDIUM_FILE;    // medium: 50MB chunks
-    return LARGE_FILE;                             // fast: 250MB chunks
+    if (estimatedMbs < 3) return SMALL_FILE;      // slow: 10MB chunks
+    if (estimatedMbs < 25) return MEDIUM_FILE;     // medium: 50MB chunks
+    return LARGE_FILE;                              // fast: 250MB chunks
   };
+
+  const fileLabel = (file: string): string =>
+    file === SMALL_FILE ? "10 MB" :
+    file === MEDIUM_FILE ? "50 MB" : "250 MB";
 
   // ── Trimmed mean: discard top/bottom fraction, average the rest ──
   const trimmedMean = (values: number[], fraction: number): number => {
@@ -131,33 +152,49 @@ export function useSpeedTest() {
   const runDownload = async (signal: AbortSignal): Promise<number> => {
     update({ phase: "download", status: "Probing connection...", downloadData: [], currentValue: 0 });
 
+    const diag: DiagnosticData = {
+      probeMbs: 0, probeFile: PROBE_FILE,
+      warmupMbs: 0, warmupFile: "",
+      measureFile: "", measureDurationSecs: 0, measurePasses: 0,
+      oneSecAverages: [], rampDiscarded: 0,
+      trimmedValues: [], finalMethod: "", finalMbs: 0,
+    };
+
     // ═══ Phase 1: Probe — quick 10MB download to estimate speed ═══
     let probeBytes = 0;
     const probeStart = performance.now();
-    await streamDownload(PROBE_FILE, signal, (bytes) => {
-      probeBytes += bytes;
-    });
+    await streamDownload(PROBE_FILE, signal, (bytes) => { probeBytes += bytes; });
     const probeElapsed = (performance.now() - probeStart) / 1000;
     const probeMbs = probeBytes / probeElapsed / 1_000_000;
+    diag.probeMbs = Math.round(probeMbs * 100) / 100;
 
-    const testFile = pickFile(probeMbs);
-    const fileSizeLabel =
-      testFile === SMALL_FILE ? "10 MB" :
-      testFile === MEDIUM_FILE ? "50 MB" : "250 MB";
+    let testFile = pickFile(probeMbs);
+    diag.warmupFile = testFile;
 
-    // ═══ Phase 2: Warmup — 1 pass, not counted ═══
+    // ═══ Phase 2: Warmup — 1 pass, not counted, but used to refine file selection ═══
     update({ status: "Warming up...", currentValue: Math.round(probeMbs * 100) / 100 });
-    await streamDownload(testFile, signal, () => {});
+    let warmupBytes = 0;
+    const warmupStart = performance.now();
+    await streamDownload(testFile, signal, (bytes) => { warmupBytes += bytes; });
+    const warmupElapsed = (performance.now() - warmupStart) / 1000;
+    const warmupMbs = warmupBytes / warmupElapsed / 1_000_000;
+    diag.warmupMbs = Math.round(warmupMbs * 100) / 100;
+
+    // Re-evaluate file size based on warmup (more accurate than probe)
+    const betterFile = pickFile(warmupMbs);
+    if (betterFile !== testFile) {
+      testFile = betterFile;
+    }
+    diag.measureFile = testFile;
 
     // ═══ Phase 3: Sustained measurement ═══
-    update({ status: `Measuring speed (${fileSizeLabel})...` });
+    update({ status: `Measuring speed (${fileLabel(testFile)})...` });
 
     const samples: Array<{ time: number; bytes: number }> = [];
     const allDataPoints: DataPoint[] = [];
     const oneSecAverages: Array<{ time: number; mbs: number }> = [];
     const measureStart = performance.now();
     let lastGraphTime = 0;
-    let lastOneSecBucket = 0;
     let bucketBytes = 0;
     let bucketStart = measureStart;
     let passCount = 0;
@@ -188,7 +225,6 @@ export function useSpeedTest() {
         oneSecAverages.push({ time: elapsed, mbs: bucketMbs });
         bucketBytes = 0;
         bucketStart = now;
-        lastOneSecBucket = elapsed;
       }
 
       // Throttle graph updates
@@ -209,9 +245,7 @@ export function useSpeedTest() {
       if (elapsed >= MAX_MEASURE_SECS) break;
 
       // Check if we can stop: minimum time met
-      if (elapsed >= MIN_MEASURE_SECS) {
-        break;
-      }
+      if (elapsed >= MIN_MEASURE_SECS) break;
 
       // Check early stop for stability after STABLE_AFTER_MIN_SECS
       if (elapsed >= STABLE_AFTER_MIN_SECS && oneSecAverages.length >= STABILITY_WINDOW_SECS) {
@@ -227,9 +261,12 @@ export function useSpeedTest() {
       }
 
       passCount++;
-      update({ status: `Measuring speed (${fileSizeLabel}, pass ${passCount})...` });
+      update({ status: `Measuring speed (${fileLabel(testFile)}, pass ${passCount})...` });
       await streamDownload(testFile, signal, processChunk);
     }
+
+    diag.measurePasses = passCount;
+    diag.measureDurationSecs = Math.round((performance.now() - measureStart) / 100) / 10;
 
     // Flush any remaining bucket
     if (bucketBytes > 0) {
@@ -241,26 +278,42 @@ export function useSpeedTest() {
       }
     }
 
+    diag.oneSecAverages = oneSecAverages.map((s) => Math.round(s.mbs * 100) / 100);
+
     // ═══ Phase 4: Calculate final speed ═══
     // Discard ramp-up portion
     const discardCount = Math.floor(oneSecAverages.length * RAMP_DISCARD_FRACTION);
     const measured = oneSecAverages.slice(discardCount).map((s) => s.mbs);
+    diag.rampDiscarded = discardCount;
 
     // Trimmed mean for robustness
     let finalMbs: number;
     if (measured.length >= 3) {
       finalMbs = trimmedMean(measured, TRIM_FRACTION);
+      diag.finalMethod = `trimmedMean(${measured.length} samples, trim=${TRIM_FRACTION})`;
     } else if (measured.length > 0) {
       finalMbs = measured.reduce((a, b) => a + b, 0) / measured.length;
+      diag.finalMethod = `simpleMean(${measured.length} samples)`;
     } else {
-      // Fallback: total bytes / total time
-      const totalBytes = samples.reduce((s, x) => s + x.bytes, 0);
+      const totalBytes = oneSecAverages.reduce((s, x) => s + x.mbs, 0);
       const totalTime = (performance.now() - measureStart) / 1000;
       finalMbs = totalBytes / totalTime / 1_000_000;
+      diag.finalMethod = "fallback(totalBytes/totalTime)";
     }
 
     finalMbs = Math.round(finalMbs * 100) / 100;
-    update({ download: finalMbs, downloadData: allDataPoints });
+    diag.finalMbs = finalMbs;
+
+    // Store which values went into the trimmed mean
+    if (measured.length >= 3) {
+      const sorted = [...measured].sort((a, b) => a - b);
+      const trimCount = Math.floor(sorted.length * TRIM_FRACTION);
+      diag.trimmedValues = sorted.slice(trimCount, sorted.length - trimCount).map((v) => Math.round(v * 100) / 100);
+    } else {
+      diag.trimmedValues = measured.map((v) => Math.round(v * 100) / 100);
+    }
+
+    update({ download: finalMbs, downloadData: allDataPoints, diagnostics: diag });
     return finalMbs;
   };
 
