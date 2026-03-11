@@ -23,7 +23,7 @@ function CustomTooltip({ active, payload }: any) {
     <div className="bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs font-mono">
       {payload.map((entry: any) => (
         <div key={entry.name} style={{ color: entry.color }}>
-          {entry.value} MB/s
+          {entry.value} Mbps
         </div>
       ))}
     </div>
@@ -32,7 +32,7 @@ function CustomTooltip({ active, payload }: any) {
 
 export function LiveGraph({ downloadData, phase }: LiveGraphProps) {
   const chartData = useMemo(
-    () => downloadData.map((d) => ({ time: d.time, download: d.value })),
+    () => downloadData.map((d) => ({ time: d.time, download: Math.round(d.value * 8 * 10) / 10 })),
     [downloadData]
   );
 

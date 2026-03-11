@@ -190,42 +190,33 @@ export function useSpeedTest() {
     // ═══ Phase 3: Sustained measurement ═══
     update({ status: `Measuring speed (${fileLabel(testFile)})...` });
 
-    const samples: Array<{ time: number; bytes: number }> = [];
+    // Rolling window samples for real-time display (trimmed to last ROLLING_WINDOW_MS)
+    const windowSamples: Array<{ time: number; bytes: number }> = [];
+    // All raw samples kept for final per-second computation
+    const rawSamples: Array<{ time: number; bytes: number }> = [];
     const allDataPoints: DataPoint[] = [];
-    const oneSecAverages: Array<{ time: number; mbs: number }> = [];
     const measureStart = performance.now();
     let lastGraphTime = 0;
-    let bucketBytes = 0;
-    let bucketStart = measureStart;
     let passCount = 0;
 
     const processChunk = (bytes: number, now: number) => {
-      samples.push({ time: now, bytes });
+      windowSamples.push({ time: now, bytes });
+      rawSamples.push({ time: now, bytes });
 
-      // Trim samples outside rolling window
+      // Trim window samples outside rolling window
       const cutoff = now - ROLLING_WINDOW_MS;
-      while (samples.length > 0 && samples[0].time < cutoff) samples.shift();
+      while (windowSamples.length > 0 && windowSamples[0].time < cutoff) windowSamples.shift();
 
       // Instantaneous speed from rolling window
-      const windowBytes = samples.reduce((sum, s) => sum + s.bytes, 0);
-      const windowDuration = samples.length > 1
-        ? (samples[samples.length - 1].time - samples[0].time) / 1000
+      const windowBytes = windowSamples.reduce((sum, s) => sum + s.bytes, 0);
+      const windowDuration = windowSamples.length > 1
+        ? (windowSamples[windowSamples.length - 1].time - windowSamples[0].time) / 1000
         : ROLLING_WINDOW_MS / 1000;
       const instantMbs = windowDuration > 0
         ? Math.round((windowBytes / windowDuration / 1_000_000) * 100) / 100
         : 0;
 
       const elapsed = (now - measureStart) / 1000;
-
-      // Collect 1-second bucket averages for final calculation
-      bucketBytes += bytes;
-      const bucketElapsed = (now - bucketStart) / 1000;
-      if (bucketElapsed >= 1) {
-        const bucketMbs = bucketBytes / bucketElapsed / 1_000_000;
-        oneSecAverages.push({ time: elapsed, mbs: bucketMbs });
-        bucketBytes = 0;
-        bucketStart = now;
-      }
 
       // Throttle graph updates
       if (elapsed - lastGraphTime > GRAPH_THROTTLE_MS / 1000) {
@@ -247,19 +238,6 @@ export function useSpeedTest() {
       // Check if we can stop: minimum time met
       if (elapsed >= MIN_MEASURE_SECS) break;
 
-      // Check early stop for stability after STABLE_AFTER_MIN_SECS
-      if (elapsed >= STABLE_AFTER_MIN_SECS && oneSecAverages.length >= STABILITY_WINDOW_SECS) {
-        const recent = oneSecAverages.slice(-STABILITY_WINDOW_SECS);
-        const mean = recent.reduce((s, r) => s + r.mbs, 0) / recent.length;
-        if (mean > 0) {
-          const stddev = Math.sqrt(
-            recent.reduce((s, r) => s + Math.pow(r.mbs - mean, 2), 0) / recent.length
-          );
-          const cv = stddev / mean;
-          if (cv < STABILITY_CV_THRESHOLD) break;
-        }
-      }
-
       passCount++;
       update({ status: `Measuring speed (${fileLabel(testFile)}, pass ${passCount})...` });
       await streamDownload(testFile, signal, processChunk);
@@ -268,19 +246,25 @@ export function useSpeedTest() {
     diag.measurePasses = passCount;
     diag.measureDurationSecs = Math.round((performance.now() - measureStart) / 100) / 10;
 
-    // Flush any remaining bucket
-    if (bucketBytes > 0) {
-      const now = performance.now();
-      const bucketElapsed = (now - bucketStart) / 1000;
-      if (bucketElapsed > 0.1) {
-        const elapsed = (now - measureStart) / 1000;
-        oneSecAverages.push({ time: elapsed, mbs: bucketBytes / bucketElapsed / 1_000_000 });
+    // ═══ Phase 4: Compute per-second averages from raw samples ═══
+    const measureEnd = performance.now();
+    const totalSecs = Math.floor((measureEnd - measureStart) / 1000);
+    const oneSecAverages: Array<{ time: number; mbs: number }> = [];
+
+    for (let s = 0; s < totalSecs; s++) {
+      const bucketStartMs = measureStart + s * 1000;
+      const bucketEndMs = bucketStartMs + 1000;
+      let bucketBytes = 0;
+      for (const sample of rawSamples) {
+        if (sample.time >= bucketStartMs && sample.time < bucketEndMs) {
+          bucketBytes += sample.bytes;
+        }
       }
+      oneSecAverages.push({ time: s + 1, mbs: bucketBytes / 1_000_000 });
     }
 
     diag.oneSecAverages = oneSecAverages.map((s) => Math.round(s.mbs * 100) / 100);
 
-    // ═══ Phase 4: Calculate final speed ═══
     // Discard ramp-up portion
     const discardCount = Math.floor(oneSecAverages.length * RAMP_DISCARD_FRACTION);
     const measured = oneSecAverages.slice(discardCount).map((s) => s.mbs);

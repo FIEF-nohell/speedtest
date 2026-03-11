@@ -20,8 +20,9 @@ export function SpeedTest() {
   const isRunning = phase !== "idle" && phase !== "complete";
   const showGraph = phase === "download" || phase === "complete";
 
-  const primaryUnit = phase === "latency" ? "ms" : "MB/s";
+  const primaryUnit = phase === "latency" ? "ms" : "Mbps";
   const primaryLabel = phase === "latency" ? "Ping" : phase === "download" ? "Download" : "";
+  const liveMbps = phase === "download" ? Math.round(result.currentValue * 8 * 100) / 100 : result.currentValue;
 
   return (
     <div className="w-full max-w-[640px] mx-auto px-6">
@@ -77,12 +78,17 @@ export function SpeedTest() {
               )}
               <div className="flex items-baseline justify-center gap-3">
                 <AnimatedNumber
-                  value={result.currentValue}
-                  decimals={phase === "latency" ? 0 : 2}
+                  value={liveMbps}
+                  decimals={phase === "latency" ? 0 : 0}
                   className="text-7xl sm:text-8xl font-mono text-white font-bold tabular-nums"
                 />
                 <span className="text-xl font-sans text-label">{primaryUnit}</span>
               </div>
+              {phase === "download" && result.currentValue > 0 && (
+                <div className="text-sm font-mono text-label/50 mt-1">
+                  {result.currentValue.toFixed(2)} MB/s
+                </div>
+              )}
             </motion.div>
 
             {showGraph && (

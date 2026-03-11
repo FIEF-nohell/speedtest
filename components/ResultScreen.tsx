@@ -7,9 +7,10 @@ import type { SpeedTestResult } from "@/lib/useSpeedTest";
 
 function buildCopyText(result: SpeedTestResult): string {
   const { download, ping, jitter, server, diagnostics: d } = result;
+  const mbps = Math.round(download * 8 * 100) / 100;
   const lines = [
     `=== Speed Test Result ===`,
-    `Download: ${download} MB/s`,
+    `Download: ${mbps} Mbps (${download} MB/s)`,
     `Ping: ${ping} ms | Jitter: ${jitter} ms`,
     `Server: ${server}`,
   ];
@@ -36,6 +37,7 @@ function buildCopyText(result: SpeedTestResult): string {
 
 export function ResultScreen({ result }: { result: SpeedTestResult }) {
   const { download, ping, jitter, server } = result;
+  const downloadMbps = Math.round(download * 8 * 100) / 100;
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -78,11 +80,14 @@ export function ResultScreen({ result }: { result: SpeedTestResult }) {
         </div>
         <div className="flex items-baseline gap-3">
           <AnimatedNumber
-            value={download}
-            decimals={2}
+            value={downloadMbps}
+            decimals={0}
             className="text-7xl sm:text-8xl font-mono text-white font-bold tabular-nums"
           />
-          <span className="text-lg font-sans text-label">MB/s</span>
+          <span className="text-lg font-sans text-label">Mbps</span>
+        </div>
+        <div className="text-sm font-mono text-label/50 mt-1">
+          {download.toFixed(2)} MB/s
         </div>
       </motion.div>
 
