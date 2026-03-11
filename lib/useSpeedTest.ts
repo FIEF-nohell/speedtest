@@ -31,6 +31,22 @@ const INITIAL: SpeedTestResult = {
   server: "",
 };
 
+// ── Tuning constants ──
+const PROBE_FILE = "/payload-10mb.bin";
+const SMALL_FILE = "/payload-10mb.bin";   // 10 MB
+const MEDIUM_FILE = "/payload-50mb.bin";  // 50 MB
+const LARGE_FILE = "/payload-250mb.bin";  // 250 MB
+
+const ROLLING_WINDOW_MS = 1500;           // rolling window for instantaneous speed
+const MIN_MEASURE_SECS = 12;              // minimum measurement duration
+const MAX_MEASURE_SECS = 30;              // hard cap
+const STABILITY_WINDOW_SECS = 5;          // window to check speed stability
+const STABILITY_CV_THRESHOLD = 0.08;      // coefficient of variation threshold (8%)
+const STABLE_AFTER_MIN_SECS = 15;         // can stop early for stability after this
+const GRAPH_THROTTLE_MS = 80;             // graph update interval (~12fps)
+const TRIM_FRACTION = 0.1;               // trim top/bottom 10% for final mean
+const RAMP_DISCARD_FRACTION = 0.15;       // discard first 15% of measurement as ramp-up
+
 export function useSpeedTest() {
   const [result, setResult] = useState<SpeedTestResult>(INITIAL);
   const abortRef = useRef<AbortController | null>(null);
@@ -38,19 +54,19 @@ export function useSpeedTest() {
   const update = (patch: Partial<SpeedTestResult>) =>
     setResult((prev) => ({ ...prev, ...patch }));
 
+  // ── Latency ──
   const runLatency = async (signal: AbortSignal): Promise<{ ping: number; jitter: number }> => {
     update({ phase: "latency", status: "Testing latency..." });
     const pings: number[] = [];
 
     for (let i = 0; i < 20; i++) {
       if (signal.aborted) throw new Error("Aborted");
-      // Small delay between pings to let each RTT settle cleanly
       if (i > 0) await new Promise((r) => setTimeout(r, 100));
       const start = performance.now();
       await fetch("/api/ping?r=" + Math.random() + "&t=" + Date.now(), {
         signal,
         cache: "no-store",
-        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       });
       const rtt = performance.now() - start;
       pings.push(rtt);
@@ -70,79 +86,176 @@ export function useSpeedTest() {
     return { ping, jitter };
   };
 
-  const runDownload = async (signal: AbortSignal): Promise<number> => {
-    update({ phase: "download", status: "Testing download...", downloadData: [], currentValue: 0 });
-
-    // 50MB×3 warmup, then 250MB×3 sustained = 900MB total
-    const passes: Array<{ file: string; label: string }> = [
-      ...Array(3).fill({ file: "/payload-50mb.bin", label: "50 MB" }),
-      ...Array(3).fill({ file: "/payload-250mb.bin", label: "250 MB" }),
-    ];
-    const total = passes.length;
-
-    // Rolling window for instantaneous speed (1-second window)
-    const samples: Array<{ time: number; bytes: number }> = [];
-    const WINDOW_MS = 1000;
-
-    let totalBytes = 0;
-    const allDataPoints: DataPoint[] = [];
-    const globalStart = performance.now();
-    let lastGraphTime = 0;
-
-    for (let i = 0; i < total; i++) {
+  // ── Helper: fetch a file and stream-read it, calling onChunk for each chunk ──
+  const streamDownload = async (
+    url: string,
+    signal: AbortSignal,
+    onChunk: (bytes: number, now: number) => void
+  ) => {
+    const response = await fetch(url + "?r=" + Math.random() + "&t=" + Date.now(), {
+      signal,
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+    const reader = response.body!.getReader();
+    while (true) {
       if (signal.aborted) throw new Error("Aborted");
-      const { file, label } = passes[i];
-      update({ status: `Downloading ${label} (${i + 1}/${total})` });
+      const { done, value } = await reader.read();
+      if (done) break;
+      onChunk(value.byteLength, performance.now());
+    }
+  };
 
-      const response = await fetch(file + "?r=" + Math.random() + "&t=" + Date.now(), {
-        signal,
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
-      });
-      const reader = response.body!.getReader();
+  // ── Pick file size based on estimated speed ──
+  const pickFile = (estimatedMbs: number): string => {
+    if (estimatedMbs < 5) return SMALL_FILE;     // slow: 10MB chunks
+    if (estimatedMbs < 50) return MEDIUM_FILE;    // medium: 50MB chunks
+    return LARGE_FILE;                             // fast: 250MB chunks
+  };
 
-      while (true) {
-        if (signal.aborted) throw new Error("Aborted");
-        const { done, value } = await reader.read();
-        if (done) break;
+  // ── Trimmed mean: discard top/bottom fraction, average the rest ──
+  const trimmedMean = (values: number[], fraction: number): number => {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const trimCount = Math.floor(sorted.length * fraction);
+    const trimmed = sorted.slice(trimCount, sorted.length - trimCount);
+    if (trimmed.length === 0) return sorted[Math.floor(sorted.length / 2)];
+    return trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
+  };
 
-        const now = performance.now();
-        totalBytes += value.byteLength;
-        samples.push({ time: now, bytes: value.byteLength });
+  // ── Download test ──
+  const runDownload = async (signal: AbortSignal): Promise<number> => {
+    update({ phase: "download", status: "Probing connection...", downloadData: [], currentValue: 0 });
 
-        // Trim samples outside the rolling window
-        const cutoff = now - WINDOW_MS;
-        while (samples.length > 0 && samples[0].time < cutoff) samples.shift();
+    // ═══ Phase 1: Probe — quick 10MB download to estimate speed ═══
+    let probeBytes = 0;
+    const probeStart = performance.now();
+    await streamDownload(PROBE_FILE, signal, (bytes) => {
+      probeBytes += bytes;
+    });
+    const probeElapsed = (performance.now() - probeStart) / 1000;
+    const probeMbs = probeBytes / probeElapsed / 1_000_000;
 
-        // Instantaneous speed = bytes in window / window duration
-        const windowBytes = samples.reduce((sum, s) => sum + s.bytes, 0);
-        const windowDuration = samples.length > 1
-          ? (samples[samples.length - 1].time - samples[0].time) / 1000
-          : WINDOW_MS / 1000;
-        const instantMbs = windowDuration > 0
-          ? Math.round((windowBytes / windowDuration / 1_000_000) * 100) / 100
-          : 0;
+    const testFile = pickFile(probeMbs);
+    const fileSizeLabel =
+      testFile === SMALL_FILE ? "10 MB" :
+      testFile === MEDIUM_FILE ? "50 MB" : "250 MB";
 
-        const elapsed = (now - globalStart) / 1000;
+    // ═══ Phase 2: Warmup — 1 pass, not counted ═══
+    update({ status: "Warming up...", currentValue: Math.round(probeMbs * 100) / 100 });
+    await streamDownload(testFile, signal, () => {});
 
-        // Throttle graph updates to ~20fps
-        if (elapsed - lastGraphTime > 0.05) {
-          lastGraphTime = elapsed;
-          allDataPoints.push({ time: Math.round(elapsed * 100) / 100, value: instantMbs });
-          update({ download: instantMbs, currentValue: instantMbs, downloadData: [...allDataPoints] });
+    // ═══ Phase 3: Sustained measurement ═══
+    update({ status: `Measuring speed (${fileSizeLabel})...` });
+
+    const samples: Array<{ time: number; bytes: number }> = [];
+    const allDataPoints: DataPoint[] = [];
+    const oneSecAverages: Array<{ time: number; mbs: number }> = [];
+    const measureStart = performance.now();
+    let lastGraphTime = 0;
+    let lastOneSecBucket = 0;
+    let bucketBytes = 0;
+    let bucketStart = measureStart;
+    let passCount = 0;
+
+    const processChunk = (bytes: number, now: number) => {
+      samples.push({ time: now, bytes });
+
+      // Trim samples outside rolling window
+      const cutoff = now - ROLLING_WINDOW_MS;
+      while (samples.length > 0 && samples[0].time < cutoff) samples.shift();
+
+      // Instantaneous speed from rolling window
+      const windowBytes = samples.reduce((sum, s) => sum + s.bytes, 0);
+      const windowDuration = samples.length > 1
+        ? (samples[samples.length - 1].time - samples[0].time) / 1000
+        : ROLLING_WINDOW_MS / 1000;
+      const instantMbs = windowDuration > 0
+        ? Math.round((windowBytes / windowDuration / 1_000_000) * 100) / 100
+        : 0;
+
+      const elapsed = (now - measureStart) / 1000;
+
+      // Collect 1-second bucket averages for final calculation
+      bucketBytes += bytes;
+      const bucketElapsed = (now - bucketStart) / 1000;
+      if (bucketElapsed >= 1) {
+        const bucketMbs = bucketBytes / bucketElapsed / 1_000_000;
+        oneSecAverages.push({ time: elapsed, mbs: bucketMbs });
+        bucketBytes = 0;
+        bucketStart = now;
+        lastOneSecBucket = elapsed;
+      }
+
+      // Throttle graph updates
+      if (elapsed - lastGraphTime > GRAPH_THROTTLE_MS / 1000) {
+        lastGraphTime = elapsed;
+        allDataPoints.push({ time: Math.round(elapsed * 100) / 100, value: instantMbs });
+        update({ download: instantMbs, currentValue: instantMbs, downloadData: [...allDataPoints] });
+      }
+    };
+
+    // Keep downloading until we have enough stable data
+    while (true) {
+      if (signal.aborted) throw new Error("Aborted");
+
+      const elapsed = (performance.now() - measureStart) / 1000;
+
+      // Hard cap
+      if (elapsed >= MAX_MEASURE_SECS) break;
+
+      // Check if we can stop: minimum time met
+      if (elapsed >= MIN_MEASURE_SECS) {
+        break;
+      }
+
+      // Check early stop for stability after STABLE_AFTER_MIN_SECS
+      if (elapsed >= STABLE_AFTER_MIN_SECS && oneSecAverages.length >= STABILITY_WINDOW_SECS) {
+        const recent = oneSecAverages.slice(-STABILITY_WINDOW_SECS);
+        const mean = recent.reduce((s, r) => s + r.mbs, 0) / recent.length;
+        if (mean > 0) {
+          const stddev = Math.sqrt(
+            recent.reduce((s, r) => s + Math.pow(r.mbs - mean, 2), 0) / recent.length
+          );
+          const cv = stddev / mean;
+          if (cv < STABILITY_CV_THRESHOLD) break;
         }
+      }
+
+      passCount++;
+      update({ status: `Measuring speed (${fileSizeLabel}, pass ${passCount})...` });
+      await streamDownload(testFile, signal, processChunk);
+    }
+
+    // Flush any remaining bucket
+    if (bucketBytes > 0) {
+      const now = performance.now();
+      const bucketElapsed = (now - bucketStart) / 1000;
+      if (bucketElapsed > 0.1) {
+        const elapsed = (now - measureStart) / 1000;
+        oneSecAverages.push({ time: elapsed, mbs: bucketBytes / bucketElapsed / 1_000_000 });
       }
     }
 
-    // Final value: average of the last 3 seconds of samples for stability
-    const finalCutoff = performance.now() - 3000;
-    const finalSamples = allDataPoints.filter(
-      (d) => d.time >= (performance.now() - globalStart) / 1000 - 3
-    );
-    const finalMbs = finalSamples.length > 0
-      ? Math.round((finalSamples.reduce((s, d) => s + d.value, 0) / finalSamples.length) * 100) / 100
-      : Math.round((totalBytes / ((performance.now() - globalStart) / 1000) / 1_000_000) * 100) / 100;
+    // ═══ Phase 4: Calculate final speed ═══
+    // Discard ramp-up portion
+    const discardCount = Math.floor(oneSecAverages.length * RAMP_DISCARD_FRACTION);
+    const measured = oneSecAverages.slice(discardCount).map((s) => s.mbs);
 
+    // Trimmed mean for robustness
+    let finalMbs: number;
+    if (measured.length >= 3) {
+      finalMbs = trimmedMean(measured, TRIM_FRACTION);
+    } else if (measured.length > 0) {
+      finalMbs = measured.reduce((a, b) => a + b, 0) / measured.length;
+    } else {
+      // Fallback: total bytes / total time
+      const totalBytes = samples.reduce((s, x) => s + x.bytes, 0);
+      const totalTime = (performance.now() - measureStart) / 1000;
+      finalMbs = totalBytes / totalTime / 1_000_000;
+    }
+
+    finalMbs = Math.round(finalMbs * 100) / 100;
     update({ download: finalMbs, downloadData: allDataPoints });
     return finalMbs;
   };
