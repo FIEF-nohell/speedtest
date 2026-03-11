@@ -33,6 +33,7 @@ export interface SpeedTestResult {
   downloadData: DataPoint[];
   currentValue: number;
   server: string;
+  totalBytes: number;
   diagnostics: DiagnosticData | null;
 }
 
@@ -45,6 +46,7 @@ const INITIAL: SpeedTestResult = {
   downloadData: [],
   currentValue: 0,
   server: "",
+  totalBytes: 0,
   diagnostics: null,
 };
 
@@ -161,9 +163,10 @@ export function useSpeedTest() {
     };
 
     // ═══ Phase 1: Probe — quick 10MB download to estimate speed ═══
+    let totalTransferred = 0;
     let probeBytes = 0;
     const probeStart = performance.now();
-    await streamDownload(PROBE_FILE, signal, (bytes) => { probeBytes += bytes; });
+    await streamDownload(PROBE_FILE, signal, (bytes) => { probeBytes += bytes; totalTransferred += bytes; });
     const probeElapsed = (performance.now() - probeStart) / 1000;
     const probeMbs = probeBytes / probeElapsed / 1_000_000;
     diag.probeMbs = Math.round(probeMbs * 100) / 100;
@@ -175,7 +178,7 @@ export function useSpeedTest() {
     update({ status: "Warming up...", currentValue: Math.round(probeMbs * 100) / 100 });
     let warmupBytes = 0;
     const warmupStart = performance.now();
-    await streamDownload(testFile, signal, (bytes) => { warmupBytes += bytes; });
+    await streamDownload(testFile, signal, (bytes) => { warmupBytes += bytes; totalTransferred += bytes; });
     const warmupElapsed = (performance.now() - warmupStart) / 1000;
     const warmupMbs = warmupBytes / warmupElapsed / 1_000_000;
     diag.warmupMbs = Math.round(warmupMbs * 100) / 100;
@@ -200,6 +203,7 @@ export function useSpeedTest() {
     let passCount = 0;
 
     const processChunk = (bytes: number, now: number) => {
+      totalTransferred += bytes;
       windowSamples.push({ time: now, bytes });
       rawSamples.push({ time: now, bytes });
 
@@ -297,7 +301,7 @@ export function useSpeedTest() {
       diag.trimmedValues = measured.map((v) => Math.round(v * 100) / 100);
     }
 
-    update({ download: finalMbs, downloadData: allDataPoints, diagnostics: diag });
+    update({ download: finalMbs, downloadData: allDataPoints, totalBytes: totalTransferred, diagnostics: diag });
     return finalMbs;
   };
 

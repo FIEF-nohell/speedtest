@@ -6,12 +6,15 @@ import { AnimatedNumber } from "./AnimatedNumber";
 import type { SpeedTestResult } from "@/lib/useSpeedTest";
 
 function buildCopyText(result: SpeedTestResult): string {
-  const { download, ping, jitter, server, diagnostics: d } = result;
+  const { download, ping, jitter, server, totalBytes, diagnostics: d } = result;
   const mbps = Math.round(download * 8 * 100) / 100;
+  const dataMB = Math.round(totalBytes / 1_000_000);
+  const dataStr = dataMB >= 1000 ? `${(dataMB / 1000).toFixed(1)} GB` : `${dataMB} MB`;
   const lines = [
     `=== Speed Test Result ===`,
     `Download: ${mbps} Mbps (${download} MB/s)`,
     `Ping: ${ping} ms | Jitter: ${jitter} ms`,
+    `Data transferred: ${dataStr}`,
     `Server: ${server}`,
   ];
 
@@ -36,8 +39,9 @@ function buildCopyText(result: SpeedTestResult): string {
 }
 
 export function ResultScreen({ result }: { result: SpeedTestResult }) {
-  const { download, ping, jitter, server } = result;
+  const { download, ping, jitter, server, totalBytes } = result;
   const downloadMbps = Math.round(download * 8 * 100) / 100;
+  const totalMB = Math.round(totalBytes / 1_000_000);
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -107,6 +111,11 @@ export function ResultScreen({ result }: { result: SpeedTestResult }) {
           <span className="text-label uppercase tracking-wider text-[11px]">Jitter</span>
           <span className="font-mono text-white font-medium">{jitter}</span>
           <span className="text-label text-[11px]">ms</span>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-label uppercase tracking-wider text-[11px]">Data</span>
+          <span className="font-mono text-white font-medium">{totalMB >= 1000 ? (totalMB / 1000).toFixed(1) : totalMB}</span>
+          <span className="text-label text-[11px]">{totalMB >= 1000 ? "GB" : "MB"}</span>
         </div>
         <div className="flex items-baseline gap-1.5 min-w-0">
           <span className="text-label uppercase tracking-wider text-[11px] shrink-0">Server</span>
