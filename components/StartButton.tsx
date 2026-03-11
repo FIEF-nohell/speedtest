@@ -10,9 +10,27 @@ interface StartButtonProps {
 
 export function StartButton({ phase, onStart }: StartButtonProps) {
   const isRunning = phase !== "idle" && phase !== "complete";
-  const label = phase === "complete" ? "Test Again" : "Start";
+  const isComplete = phase === "complete";
 
   if (isRunning) return null;
+
+  if (isComplete) {
+    return (
+      <div className="flex justify-center mt-6">
+        <motion.button
+          onClick={onStart}
+          className="px-6 py-2.5 rounded-full bg-surface border border-white/10 text-white/60 font-sans text-sm tracking-wide cursor-pointer transition-all hover:text-white hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-accent/30"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.5 }}
+        >
+          Test Again
+        </motion.button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex justify-center mt-8">
@@ -31,7 +49,7 @@ export function StartButton({ phase, onStart }: StartButtonProps) {
           animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
-        {label}
+        Start
       </motion.button>
     </div>
   );
