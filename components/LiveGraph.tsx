@@ -71,7 +71,9 @@ export function LiveGraph({ downloadData, phase }: LiveGraphProps) {
                 tick={{ fill: "#6b7280", fontSize: 10 }}
                 width={40}
               />
-              <Tooltip content={<CustomTooltip />} />
+              {phase === "complete" && (
+                <Tooltip content={<CustomTooltip />} trigger="click" />
+              )}
               <Area
                 type="monotone"
                 dataKey="download"
