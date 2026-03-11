@@ -67,16 +67,24 @@ export function useSpeedTest() {
   const runDownload = async (signal: AbortSignal): Promise<number> => {
     update({ phase: "download", status: "Testing download...", downloadData: [], currentValue: 0 });
 
-    const rounds = 6;
+    // Each payload downloaded 3 times: 10MB×3, 50MB×3, 250MB×3 = 930MB total
+    const passes: Array<{ file: string; label: string }> = [
+      ...Array(3).fill({ file: "/payload-10mb.bin", label: "10 MB" }),
+      ...Array(3).fill({ file: "/payload-50mb.bin", label: "50 MB" }),
+      ...Array(3).fill({ file: "/payload-250mb.bin", label: "250 MB" }),
+    ];
+    const total = passes.length;
+
     let totalBytes = 0;
     const allDataPoints: DataPoint[] = [];
     const globalStart = performance.now();
 
-    for (let round = 0; round < rounds; round++) {
+    for (let i = 0; i < total; i++) {
       if (signal.aborted) throw new Error("Aborted");
-      update({ status: `Testing download... (${round + 1}/${rounds})` });
+      const { file, label } = passes[i];
+      update({ status: `Downloading ${label} (${i + 1}/${total})` });
 
-      const response = await fetch("/payload.bin?r=" + Math.random(), { signal, cache: "no-store" });
+      const response = await fetch(file + "?r=" + Math.random(), { signal, cache: "no-store" });
       const reader = response.body!.getReader();
 
       while (true) {

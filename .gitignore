@@ -39,5 +39,7 @@ next-env.d.ts
 # vercel
 .vercel
 
-# test payload is committed to the repo (run npm run generate-payload to regenerate)
-# public/payload.bin
+# 250MB payload is too large for GitHub — generated locally via postinstall
+public/payload-250mb.bin
+# old single payload (replaced by sized variants)
+public/payload.bin
