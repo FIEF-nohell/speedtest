@@ -93,64 +93,77 @@ export function SpeedTest() {
             )}
           </motion.div>
         ) : (
-          /* ── Idle / start screen ── */
+          /* ── Idle / landing ── */
           <motion.div
             key="idle"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex flex-col items-center justify-center py-8"
+            transition={{ duration: 0.6 }}
+            className="flex flex-col items-center justify-center py-12"
           >
-            {/* Ambient rings + button */}
-            <div className="relative flex items-center justify-center mb-10">
-              {/* Outer pulse rings */}
+            {/* Title */}
+            <motion.h1
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="text-lg sm:text-xl font-mono text-white/80 tracking-wider mb-1"
+            >
+              Speed Test
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.15 }}
+              className="text-[11px] font-mono text-label/30 tracking-widest uppercase mb-12"
+            >
+              latency &middot; download
+            </motion.p>
+
+            {/* GO button with ambient rings */}
+            <div className="relative flex items-center justify-center mb-14">
               {[1.9, 1.55, 1.25].map((scale, i) => (
                 <motion.div
                   key={i}
-                  className="absolute rounded-full border border-accent/10"
+                  className="absolute rounded-full border border-accent/8"
                   style={{ width: 112 * scale, height: 112 * scale }}
-                  animate={{ opacity: [0.4, 0.08, 0.4], scale: [1, 1.04, 1] }}
+                  animate={{ opacity: [0.3, 0.06, 0.3], scale: [1, 1.04, 1] }}
                   transition={{
-                    duration: 3,
+                    duration: 3.5,
                     repeat: Infinity,
                     ease: "easeInOut",
-                    delay: i * 0.5,
+                    delay: i * 0.6,
                   }}
                 />
               ))}
 
-              {/* Button */}
               <motion.button
                 onClick={start}
-                className="relative z-10 w-28 h-28 rounded-full bg-surface border border-accent/30 text-white font-sans font-medium text-lg tracking-widest cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/40"
-                whileHover={{ scale: 1.06, borderColor: "rgba(0,212,255,0.6)" }}
+                className="relative z-10 w-28 h-28 rounded-full bg-surface border border-accent/25 text-white font-mono font-medium text-lg tracking-[0.25em] cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
+                whileHover={{ scale: 1.06, borderColor: "rgba(0,212,255,0.5)" }}
                 whileTap={{ scale: 0.95 }}
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
               >
-                {/* Inner glow on hover via box-shadow is handled by Tailwind ring */}
                 <motion.div
                   className="absolute inset-0 rounded-full"
                   style={{ boxShadow: "0 0 0 0 rgba(0,212,255,0)" }}
-                  whileHover={{ boxShadow: "0 0 32px 4px rgba(0,212,255,0.15)" }}
-                  transition={{ duration: 0.2 }}
+                  whileHover={{ boxShadow: "0 0 40px 6px rgba(0,212,255,0.12)" }}
+                  transition={{ duration: 0.25 }}
                 />
                 GO
               </motion.button>
             </div>
 
-            {/* Hint */}
+            {/* Server info */}
             <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="flex items-center gap-2 text-[11px] font-mono text-label/50 uppercase tracking-widest"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="text-[10px] font-mono text-label/20 tracking-wider"
             >
-              <span>latency</span>
-              <span className="text-label/20">·</span>
-              <span>download</span>
+              {typeof window !== "undefined" ? window.location.host : ""}
             </motion.div>
           </motion.div>
         )}
