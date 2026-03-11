@@ -61,9 +61,9 @@ export function LiveGraph({ downloadData, phase }: LiveGraphProps) {
                 dataKey="time"
                 axisLine={false}
                 tickLine={false}
-                tick={phase === "complete" ? false : { fill: "#6b7280", fontSize: 10 }}
+                tick={false}
                 tickFormatter={(v) => `${v}s`}
-                height={phase === "complete" ? 0 : undefined}
+                height={0}
               />
               <YAxis
                 axisLine={false}
