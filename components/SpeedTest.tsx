@@ -4,39 +4,26 @@ import { useSpeedTest } from "@/lib/useSpeedTest";
 import { StatusLine } from "./StatusLine";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { LiveGraph } from "./LiveGraph";
-import { StartButton } from "./StartButton";
 import { ResultScreen } from "./ResultScreen";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function SpeedTest() {
   const { result, start } = useSpeedTest();
-  const { phase, status, downloadData, uploadData } = result;
+  const { phase, status, downloadData } = result;
 
   const isRunning = phase !== "idle" && phase !== "complete";
-  const showGraph = phase === "download" || phase === "upload" || phase === "complete";
+  const showGraph = phase === "download" || phase === "complete";
 
-  // Determine primary display value during test
-  let primaryValue = result.currentValue;
-  let primaryUnit = "MB/s";
-  let primaryLabel = "";
-
-  if (phase === "latency") {
-    primaryUnit = "ms";
-    primaryLabel = "Ping";
-  } else if (phase === "download") {
-    primaryLabel = "Download";
-  } else if (phase === "upload") {
-    primaryLabel = "Upload";
-  }
+  const primaryUnit = phase === "latency" ? "ms" : "MB/s";
+  const primaryLabel = phase === "latency" ? "Ping" : phase === "download" ? "Download" : "";
 
   return (
     <div className="w-full max-w-[640px] mx-auto px-6">
-      {/* Status line */}
       <StatusLine phase={phase} status={status} />
 
       <AnimatePresence mode="wait">
         {phase === "complete" ? (
-          /* ── Completion screen ── */
+          /* ── Results ── */
           <motion.div
             key="complete"
             initial={{ opacity: 0 }}
@@ -45,17 +32,23 @@ export function SpeedTest() {
             transition={{ duration: 0.4 }}
           >
             <ResultScreen result={result} />
-
-            <LiveGraph
-              downloadData={downloadData}
-              uploadData={uploadData}
-              phase={phase}
-            />
-
-            <StartButton phase={phase} onStart={start} />
+            <LiveGraph downloadData={downloadData} phase={phase} />
+            <div className="flex justify-center mt-2">
+              <motion.button
+                onClick={start}
+                className="px-6 py-2.5 rounded-full bg-surface border border-white/10 text-white/60 font-sans text-sm tracking-wide cursor-pointer transition-all hover:text-white hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-accent/30"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.5 }}
+              >
+                Test Again
+              </motion.button>
+            </div>
           </motion.div>
-        ) : (
-          /* ── Active test / idle screen ── */
+        ) : isRunning ? (
+          /* ── Active test ── */
           <motion.div
             key="testing"
             initial={{ opacity: 0 }}
@@ -63,45 +56,93 @@ export function SpeedTest() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Primary metric */}
-            <AnimatePresence mode="wait">
-              {isRunning && (
-                <motion.div
-                  key={phase}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-center mb-2"
-                >
-                  {primaryLabel && (
-                    <div className="text-sm font-sans text-label uppercase tracking-widest mb-2">
-                      {primaryLabel}
-                    </div>
-                  )}
-                  <div className="flex items-baseline justify-center gap-3">
-                    <AnimatedNumber
-                      value={primaryValue}
-                      decimals={phase === "latency" ? 0 : 2}
-                      className="text-7xl sm:text-8xl font-mono text-white font-bold tabular-nums"
-                    />
-                    <span className="text-xl font-sans text-label">{primaryUnit}</span>
-                  </div>
-                </motion.div>
+            <motion.div
+              key={phase}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="text-center mb-2"
+            >
+              {primaryLabel && (
+                <div className="text-sm font-sans text-label uppercase tracking-widest mb-2">
+                  {primaryLabel}
+                </div>
               )}
-            </AnimatePresence>
+              <div className="flex items-baseline justify-center gap-3">
+                <AnimatedNumber
+                  value={result.currentValue}
+                  decimals={phase === "latency" ? 0 : 2}
+                  className="text-7xl sm:text-8xl font-mono text-white font-bold tabular-nums"
+                />
+                <span className="text-xl font-sans text-label">{primaryUnit}</span>
+              </div>
+            </motion.div>
 
-            {/* Live graph */}
             {showGraph && (
-              <LiveGraph
-                downloadData={downloadData}
-                uploadData={uploadData}
-                phase={phase}
-              />
+              <LiveGraph downloadData={downloadData} phase={phase} />
             )}
+          </motion.div>
+        ) : (
+          /* ── Idle / start screen ── */
+          <motion.div
+            key="idle"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col items-center justify-center py-8"
+          >
+            {/* Ambient rings + button */}
+            <div className="relative flex items-center justify-center mb-10">
+              {/* Outer pulse rings */}
+              {[1.9, 1.55, 1.25].map((scale, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute rounded-full border border-accent/10"
+                  style={{ width: 112 * scale, height: 112 * scale }}
+                  animate={{ opacity: [0.4, 0.08, 0.4], scale: [1, 1.04, 1] }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: i * 0.5,
+                  }}
+                />
+              ))}
 
-            {/* Start button (idle) */}
-            <StartButton phase={phase} onStart={start} />
+              {/* Button */}
+              <motion.button
+                onClick={start}
+                className="relative z-10 w-28 h-28 rounded-full bg-surface border border-accent/30 text-white font-sans font-medium text-lg tracking-widest cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/40"
+                whileHover={{ scale: 1.06, borderColor: "rgba(0,212,255,0.6)" }}
+                whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                {/* Inner glow on hover via box-shadow is handled by Tailwind ring */}
+                <motion.div
+                  className="absolute inset-0 rounded-full"
+                  style={{ boxShadow: "0 0 0 0 rgba(0,212,255,0)" }}
+                  whileHover={{ boxShadow: "0 0 32px 4px rgba(0,212,255,0.15)" }}
+                  transition={{ duration: 0.2 }}
+                />
+                GO
+              </motion.button>
+            </div>
+
+            {/* Hint */}
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="flex items-center gap-2 text-[11px] font-mono text-label/50 uppercase tracking-widest"
+            >
+              <span>latency</span>
+              <span className="text-label/20">·</span>
+              <span>download</span>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

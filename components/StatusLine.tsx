@@ -7,7 +7,6 @@ const phaseColors: Record<TestPhase, string> = {
   idle: "#6b7280",
   latency: "#facc15",
   download: "#00d4ff",
-  upload: "#a78bfa",
   complete: "#4ade80",
 };
 

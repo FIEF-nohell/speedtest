@@ -14,7 +14,6 @@ import type { DataPoint, TestPhase } from "@/lib/useSpeedTest";
 
 interface LiveGraphProps {
   downloadData: DataPoint[];
-  uploadData: DataPoint[];
   phase: TestPhase;
 }
 
@@ -24,43 +23,25 @@ function CustomTooltip({ active, payload }: any) {
     <div className="bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs font-mono">
       {payload.map((entry: any) => (
         <div key={entry.name} style={{ color: entry.color }}>
-          {entry.name}: {entry.value} MB/s
+          {entry.value} MB/s
         </div>
       ))}
     </div>
   );
 }
 
-export function LiveGraph({ downloadData, uploadData, phase }: LiveGraphProps) {
-  const showBoth = phase === "complete" || phase === "upload";
+export function LiveGraph({ downloadData, phase }: LiveGraphProps) {
+  const chartData = useMemo(
+    () => downloadData.map((d) => ({ time: d.time, download: d.value })),
+    [downloadData]
+  );
 
-  const mergedData = useMemo(() => {
-    if (phase === "download" || (phase !== "complete" && phase !== "upload")) {
-      return downloadData.map((d) => ({ time: d.time, download: d.value }));
-    }
-
-    if (phase === "upload" && uploadData.length > 0 && downloadData.length === 0) {
-      return uploadData.map((d) => ({ time: d.time, upload: d.value }));
-    }
-
-    const map = new Map<number, any>();
-    downloadData.forEach((d) => {
-      map.set(d.time, { time: d.time, download: d.value });
-    });
-    uploadData.forEach((d) => {
-      const existing = map.get(d.time) || { time: d.time };
-      map.set(d.time, { ...existing, upload: d.value });
-    });
-
-    return Array.from(map.values()).sort((a, b) => a.time - b.time);
-  }, [downloadData, uploadData, phase]);
-
-  const hasData = mergedData.length > 1;
+  const hasData = chartData.length > 1;
 
   return (
     <AnimatePresence mode="wait">
       <motion.div
-        key={phase === "complete" ? "complete" : phase}
+        key={phase === "complete" ? "complete" : "active"}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
@@ -69,15 +50,11 @@ export function LiveGraph({ downloadData, uploadData, phase }: LiveGraphProps) {
       >
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={mergedData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+            <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
               <defs>
                 <linearGradient id="dlGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#00d4ff" stopOpacity={0.3} />
                   <stop offset="100%" stopColor="#00d4ff" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="ulGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis
@@ -92,7 +69,6 @@ export function LiveGraph({ downloadData, uploadData, phase }: LiveGraphProps) {
                 tickLine={false}
                 tick={{ fill: "#6b7280", fontSize: 10 }}
                 width={40}
-                tickFormatter={(v) => `${v}`}
               />
               <Tooltip content={<CustomTooltip />} />
               <Area
@@ -105,18 +81,6 @@ export function LiveGraph({ downloadData, uploadData, phase }: LiveGraphProps) {
                 isAnimationActive={false}
                 name="Download"
               />
-              {showBoth && (
-                <Area
-                  type="monotone"
-                  dataKey="upload"
-                  stroke="#a78bfa"
-                  strokeWidth={2}
-                  fill="url(#ulGradient)"
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Upload"
-                />
-              )}
             </AreaChart>
           </ResponsiveContainer>
         ) : (

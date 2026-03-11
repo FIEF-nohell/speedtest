@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 
-export type TestPhase = "idle" | "latency" | "download" | "upload" | "complete";
+export type TestPhase = "idle" | "latency" | "download" | "complete";
 
 export interface DataPoint {
   time: number; // seconds elapsed
@@ -15,11 +15,8 @@ export interface SpeedTestResult {
   ping: number;
   jitter: number;
   download: number;
-  upload: number;
   downloadData: DataPoint[];
-  uploadData: DataPoint[];
   currentValue: number;
-  isp: string;
   server: string;
 }
 
@@ -29,11 +26,8 @@ const INITIAL: SpeedTestResult = {
   ping: 0,
   jitter: 0,
   download: 0,
-  upload: 0,
   downloadData: [],
-  uploadData: [],
   currentValue: 0,
-  isp: "",
   server: "",
 };
 
@@ -48,7 +42,6 @@ export function useSpeedTest() {
     update({ phase: "latency", status: "Testing latency..." });
     const pings: number[] = [];
 
-    // 20 pings for better accuracy, discard first 2 as warmup
     for (let i = 0; i < 20; i++) {
       if (signal.aborted) throw new Error("Aborted");
       const start = performance.now();
@@ -56,13 +49,11 @@ export function useSpeedTest() {
       const rtt = performance.now() - start;
       pings.push(rtt);
 
-      // Show running average (skip warmup in display after we have enough)
       const relevant = i >= 2 ? pings.slice(2) : pings;
       const avg = relevant.reduce((a, b) => a + b, 0) / relevant.length;
       update({ ping: Math.round(avg), currentValue: Math.round(avg) });
     }
 
-    // Discard first 2 warmup pings
     const measured = pings.slice(2);
     const avg = measured.reduce((a, b) => a + b, 0) / measured.length;
     const variance = measured.reduce((sum, p) => sum + Math.pow(p - avg, 2), 0) / measured.length;
@@ -106,42 +97,6 @@ export function useSpeedTest() {
     return finalMbs;
   };
 
-  const runUpload = async (signal: AbortSignal): Promise<number> => {
-    update({ phase: "upload", status: "Testing upload...", uploadData: [], currentValue: 0 });
-
-    const chunkSize = 2 * 1024 * 1024; // 2MB per request
-    const totalRounds = 8;
-    const dataPoints: DataPoint[] = [];
-    const payload = new Uint8Array(chunkSize);
-    for (let i = 0; i < chunkSize; i++) payload[i] = (i * 11 + 7) & 0xff;
-
-    let totalBytes = 0;
-    const startTime = performance.now();
-
-    for (let i = 0; i < totalRounds; i++) {
-      if (signal.aborted) throw new Error("Aborted");
-      update({ status: `Testing upload... (${i + 1}/${totalRounds})` });
-
-      await fetch("/api/upload", {
-        method: "POST",
-        body: payload,
-        signal,
-        cache: "no-store",
-      });
-
-      totalBytes += chunkSize;
-      const elapsed = (performance.now() - startTime) / 1000;
-      const mbs = Math.round((totalBytes / elapsed / 1_000_000) * 100) / 100;
-      dataPoints.push({ time: Math.round(elapsed * 100) / 100, value: mbs });
-      update({ upload: mbs, currentValue: mbs, uploadData: [...dataPoints] });
-    }
-
-    const elapsed = (performance.now() - startTime) / 1000;
-    const finalMbs = Math.round((totalBytes / elapsed / 1_000_000) * 100) / 100;
-    update({ upload: finalMbs, uploadData: dataPoints });
-    return finalMbs;
-  };
-
   const start = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -152,12 +107,10 @@ export function useSpeedTest() {
     try {
       await runLatency(controller.signal);
       await runDownload(controller.signal);
-      await runUpload(controller.signal);
       update({
         phase: "complete",
         status: "Complete",
         server: window.location.host,
-        isp: "Your ISP",
       });
     } catch (e) {
       if ((e as Error).message !== "Aborted") {
