@@ -38,3 +38,6 @@ next-env.d.ts
 
 # vercel
 .vercel
+
+# generated test payload
+public/payload.bin

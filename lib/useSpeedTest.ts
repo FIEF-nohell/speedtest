@@ -85,7 +85,7 @@ export function useSpeedTest() {
       if (signal.aborted) throw new Error("Aborted");
       update({ status: `Testing download... (${round + 1}/${rounds})` });
 
-      const response = await fetch("/api/download?r=" + Math.random(), { signal, cache: "no-store" });
+      const response = await fetch("/payload.bin?r=" + Math.random(), { signal, cache: "no-store" });
       const reader = response.body!.getReader();
 
       while (true) {

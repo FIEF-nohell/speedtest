@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate-payload": "node scripts/generate-payload.js",
+    "postinstall": "node scripts/generate-payload.js"
   },
   "dependencies": {
     "next": "^14.2.0",
