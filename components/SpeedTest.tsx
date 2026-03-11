@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSpeedTest } from "@/lib/useSpeedTest";
 import { StatusLine } from "./StatusLine";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -10,6 +10,8 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export function SpeedTest() {
   const { result, start } = useSpeedTest();
+  const [host, setHost] = useState("");
+  useEffect(() => { setHost(window.location.host); }, []);
   const { phase, status, downloadData } = result;
 
   const isRunning = phase !== "idle" && phase !== "complete";
@@ -161,7 +163,7 @@ export function SpeedTest() {
               transition={{ duration: 0.5, delay: 0.4 }}
               className="text-[10px] font-mono text-label/20 tracking-wider"
             >
-              {typeof window !== "undefined" ? window.location.host : ""}
+              {host}
             </motion.div>
           </motion.div>
         )}
