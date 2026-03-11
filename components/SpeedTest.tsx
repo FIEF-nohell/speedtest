@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useSpeedTest } from "@/lib/useSpeedTest";
 import { StatusLine } from "./StatusLine";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -9,6 +10,11 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export function SpeedTest() {
   const { result, start } = useSpeedTest();
+  // Auto-start 1 second after page load
+  useEffect(() => {
+    const timer = setTimeout(start, 1000);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const { phase, status, downloadData } = result;
 
   const isRunning = phase !== "idle" && phase !== "complete";

@@ -44,8 +44,14 @@ export function useSpeedTest() {
 
     for (let i = 0; i < 20; i++) {
       if (signal.aborted) throw new Error("Aborted");
+      // Small delay between pings to let each RTT settle cleanly
+      if (i > 0) await new Promise((r) => setTimeout(r, 100));
       const start = performance.now();
-      await fetch("/api/ping?r=" + Math.random(), { signal, cache: "no-store" });
+      await fetch("/api/ping?r=" + Math.random() + "&t=" + Date.now(), {
+        signal,
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+      });
       const rtt = performance.now() - start;
       pings.push(rtt);
 
@@ -88,7 +94,11 @@ export function useSpeedTest() {
       const { file, label } = passes[i];
       update({ status: `Downloading ${label} (${i + 1}/${total})` });
 
-      const response = await fetch(file + "?r=" + Math.random(), { signal, cache: "no-store" });
+      const response = await fetch(file + "?r=" + Math.random() + "&t=" + Date.now(), {
+        signal,
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+      });
       const reader = response.body!.getReader();
 
       while (true) {
