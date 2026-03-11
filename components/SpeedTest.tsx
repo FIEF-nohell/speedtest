@@ -17,7 +17,7 @@ export function SpeedTest() {
 
   // Determine primary display value during test
   let primaryValue = result.currentValue;
-  let primaryUnit = "Mbps";
+  let primaryUnit = "MB/s";
   let primaryLabel = "";
 
   if (phase === "latency") {

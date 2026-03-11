@@ -6,7 +6,7 @@ export type TestPhase = "idle" | "latency" | "download" | "upload" | "complete";
 
 export interface DataPoint {
   time: number; // seconds elapsed
-  value: number; // Mbps
+  value: number; // MB/s
 }
 
 export interface SpeedTestResult {
@@ -94,16 +94,16 @@ export function useSpeedTest() {
         if (done) break;
         totalBytes += value.byteLength;
         const elapsed = (performance.now() - globalStart) / 1000;
-        const mbps = Math.round(((totalBytes * 8) / elapsed / 1_000_000) * 100) / 100;
-        allDataPoints.push({ time: Math.round(elapsed * 100) / 100, value: mbps });
-        update({ download: mbps, currentValue: mbps, downloadData: [...allDataPoints] });
+        const mbs = Math.round((totalBytes / elapsed / 1_000_000) * 100) / 100;
+        allDataPoints.push({ time: Math.round(elapsed * 100) / 100, value: mbs });
+        update({ download: mbs, currentValue: mbs, downloadData: [...allDataPoints] });
       }
     }
 
     const elapsed = (performance.now() - globalStart) / 1000;
-    const finalMbps = Math.round(((totalBytes * 8) / elapsed / 1_000_000) * 100) / 100;
-    update({ download: finalMbps, downloadData: allDataPoints });
-    return finalMbps;
+    const finalMbs = Math.round((totalBytes / elapsed / 1_000_000) * 100) / 100;
+    update({ download: finalMbs, downloadData: allDataPoints });
+    return finalMbs;
   };
 
   const runUpload = async (signal: AbortSignal): Promise<number> => {
@@ -131,15 +131,15 @@ export function useSpeedTest() {
 
       totalBytes += chunkSize;
       const elapsed = (performance.now() - startTime) / 1000;
-      const mbps = Math.round(((totalBytes * 8) / elapsed / 1_000_000) * 100) / 100;
-      dataPoints.push({ time: Math.round(elapsed * 100) / 100, value: mbps });
-      update({ upload: mbps, currentValue: mbps, uploadData: [...dataPoints] });
+      const mbs = Math.round((totalBytes / elapsed / 1_000_000) * 100) / 100;
+      dataPoints.push({ time: Math.round(elapsed * 100) / 100, value: mbs });
+      update({ upload: mbs, currentValue: mbs, uploadData: [...dataPoints] });
     }
 
     const elapsed = (performance.now() - startTime) / 1000;
-    const finalMbps = Math.round(((totalBytes * 8) / elapsed / 1_000_000) * 100) / 100;
-    update({ upload: finalMbps, uploadData: dataPoints });
-    return finalMbps;
+    const finalMbs = Math.round((totalBytes / elapsed / 1_000_000) * 100) / 100;
+    update({ upload: finalMbs, uploadData: dataPoints });
+    return finalMbs;
   };
 
   const start = useCallback(async () => {

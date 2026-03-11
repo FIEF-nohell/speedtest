@@ -24,7 +24,7 @@ function CustomTooltip({ active, payload }: any) {
     <div className="bg-surface border border-white/10 rounded-lg px-3 py-2 text-xs font-mono">
       {payload.map((entry: any) => (
         <div key={entry.name} style={{ color: entry.color }}>
-          {entry.name}: {entry.value} Mbps
+          {entry.name}: {entry.value} MB/s
         </div>
       ))}
     </div>

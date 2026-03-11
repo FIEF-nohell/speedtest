@@ -34,7 +34,7 @@ export function ResultScreen({ result }: { result: SpeedTestResult }) {
               decimals={2}
               className="text-5xl sm:text-6xl font-mono text-white font-bold tabular-nums"
             />
-            <span className="text-sm font-sans text-label">Mbps</span>
+            <span className="text-sm font-sans text-label">MB/s</span>
           </div>
         </motion.div>
 
@@ -56,7 +56,7 @@ export function ResultScreen({ result }: { result: SpeedTestResult }) {
               decimals={2}
               className="text-5xl sm:text-6xl font-mono text-white font-bold tabular-nums"
             />
-            <span className="text-sm font-sans text-label">Mbps</span>
+            <span className="text-sm font-sans text-label">MB/s</span>
           </div>
         </motion.div>
       </div>
