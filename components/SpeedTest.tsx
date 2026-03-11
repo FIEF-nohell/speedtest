@@ -37,18 +37,16 @@ export function SpeedTest() {
           >
             <ResultScreen result={result} />
             <LiveGraph downloadData={downloadData} phase={phase} />
-            <div className="flex justify-center mt-2">
-              <motion.button
+            <div className="flex justify-center mt-4">
+              <motion.span
                 onClick={start}
-                className="px-6 py-2.5 rounded-full bg-surface border border-white/10 text-white/60 font-sans text-sm tracking-wide cursor-pointer transition-all hover:text-white hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-accent/30"
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.5 }}
+                className="text-[11px] font-mono text-label/40 hover:text-label/70 transition-colors cursor-pointer select-none tracking-wide"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.6 }}
               >
-                Test Again
-              </motion.button>
+                test again
+              </motion.span>
             </div>
           </motion.div>
         ) : isRunning ? (
